@@ -1,13 +1,16 @@
-async function initializeGroqBots() {
-    // 1. Asks for your Groq API Key (starts with gsk_...)
-    const groqKey = prompt("Please enter your Groq API Key to activate the Llama 8B bots:");
-    
-    if (!groqKey) {
-        console.error("No key provided. Bots are sitting idle.");
+// This waits for WorkAdventure to load your script via your URL
+WA.onInit().then(async () => {
+    console.log("WorkAdventure URL script connected! Spawning both assistants...");
+
+    // 1. Put your actual Groq API key here (Starts with gsk_...)
+    const GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"; 
+
+    if (GROQ_API_KEY === "YOUR_GROQ_API_KEY_HERE" || !GROQ_API_KEY) {
+        console.error("CRITICAL: Remember to add your real Groq Key inside the code!");
         return;
     }
 
-    // Spawn Bot #1: The Researcher
+    // 2. Spawn Bot #1: The Researcher (Moves to x: 200, y: 200)
     const researcherBot = await WA.bot.spawnBot({
         name: "Llama Researcher",
         userId: "groq_bot_researcher",
@@ -16,7 +19,7 @@ async function initializeGroqBots() {
         character: "receptionist"
     });
 
-    // Spawn Bot #2: The Writer
+    // 3. Spawn Bot #2: The Writer (Moves to x: 400, y: 200)
     const writerBot = await WA.bot.spawnBot({
         name: "Llama Writer",
         userId: "groq_bot_writer",
@@ -25,11 +28,14 @@ async function initializeGroqBots() {
         character: "casual_guy"
     });
 
-    // Listen for chat triggers
+    console.log("Both characters have been requested on the map.");
+
+    // 4. Watch the chat room and reply using Groq
     WA.chat.onChatMessage((message) => {
         let selectedBot = null;
         let systemRolePrompt = "";
 
+        // Check who the player is whispering to or mentioning
         if (message.recipientId === "groq_bot_researcher") {
             selectedBot = researcherBot;
             systemRolePrompt = "You are a factual research assistant. Keep answers under two sentences.";
@@ -38,16 +44,16 @@ async function initializeGroqBots() {
             systemRolePrompt = "You are an energetic, creative copywriter.";
         }
 
+        // Send data to Groq only if one of our bots was targeted
         if (selectedBot) {
-            // Target the Groq Cloud endpoint directly
-            fetch("https://api.groq.com/openai/v1/chat/completions", {
+            fetch("https://groq.com", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${groqKey}`,
+                    "Authorization": `Bearer ${GROQ_API_KEY}`,
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    model: "llama-3.1-8b-instant", // Triggers Meta's Llama 8B model via Groq
+                    model: "llama-3.1-8b-instant", 
                     messages: [
                         { role: "system", content: systemRolePrompt },
                         { role: "user", content: message.text }
@@ -55,19 +61,20 @@ async function initializeGroqBots() {
                 })
             })
             .then(res => {
-                if (!res.ok) throw new Error(`Groq Error Status: ${res.status}`);
+                if (!res.ok) throw new Error(`Groq API Error: ${res.status}`);
                 return res.json();
             })
             .then(data => {
-                // Return Groq's answer directly back into the WorkAdventure room
+                // The correct bot speaks out loud in the room
                 selectedBot.say(data.choices[0].message.content);
             })
             .catch(err => {
-                selectedBot.say("Groq API connection failed. Check your browser console log.");
-                console.error(err);
+                selectedBot.say("Groq API connection failed.");
+                console.error("Groq Error:", err);
             });
         }
     });
-}
 
-initializeGroqBots();
+}).catch((err) => {
+    console.error("WorkAdventure couldn't run the script:", err);
+});

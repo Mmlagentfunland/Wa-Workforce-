@@ -1,50 +1,62 @@
-// This waits for WorkAdventure to load your script via your URL
 WA.onInit().then(async () => {
-    console.log("WorkAdventure URL script connected! Spawning both assistants...");
+    console.log("⚡ [WA Bot] Script successfully injected into map!");
 
-    // 1. Put your actual Groq API key here (Starts with gsk_...)
     const GROQ_API_KEY = "YOUR_GROQ_API_KEY_HERE"; 
 
     if (GROQ_API_KEY === "YOUR_GROQ_API_KEY_HERE" || !GROQ_API_KEY) {
-        console.error("CRITICAL: Remember to add your real Groq Key inside the code!");
+        console.error("❌ [WA Bot] CRITICAL ERROR: Groq Key is missing inside the script!");
         return;
     }
 
-    // 2. Spawn Bot #1: The Researcher (Moves to x: 200, y: 200)
-    const researcherBot = await WA.bot.spawnBot({
-        name: "Llama Researcher",
-        userId: "groq_bot_researcher",
-        x: 200, 
-        y: 200,
-        character: "receptionist"
-    });
+    console.log("🤖 [WA Bot] Attempting to spawn BOTH characters side-by-side...");
 
-    // 3. Spawn Bot #2: The Writer (Moves to x: 400, y: 200)
-    const writerBot = await WA.bot.spawnBot({
-        name: "Llama Writer",
-        userId: "groq_bot_writer",
-        x: 400,
-        y: 200,
-        character: "casual_guy"
-    });
+    // Create both bots simultaneously so WorkAdventure doesn't drop the second one
+    const spawnRequests = [
+        WA.bot.spawnBot({
+            name: "Llama Researcher",
+            userId: "groq_bot_researcher_v2", // Changed ID to avoid naming conflicts
+            x: 200, 
+            y: 200,
+            character: "receptionist"
+        }).then(bot => {
+            console.log("✅ [WA Bot] Researcher spawned successfully!");
+            return bot;
+        }).catch(err => {
+            console.error("❌ [WA Bot] Researcher failed to spawn:", err);
+            return null;
+        }),
 
-    console.log("Both characters have been requested on the map.");
+        WA.bot.spawnBot({
+            name: "Llama Writer",
+            userId: "groq_bot_writer_v2", // Changed ID to avoid naming conflicts
+            x: 250, // Moved closer to x:200 so they stand near each other
+            y: 200,
+            character: "casual_guy"
+        }).then(bot => {
+            console.log("✅ [WA Bot] Writer spawned successfully!");
+            return bot;
+        }).catch(err => {
+            console.error("❌ [WA Bot] Writer failed to spawn:", err);
+            return null;
+        })
+    ];
 
-    // 4. Watch the chat room and reply using Groq
+    // Wait for both spawn attempts to resolve
+    const [researcherBot, writerBot] = await Promise.all(spawnRequests);
+
+    // Chat router
     WA.chat.onChatMessage((message) => {
         let selectedBot = null;
         let systemRolePrompt = "";
 
-        // Check who the player is whispering to or mentioning
-        if (message.recipientId === "groq_bot_researcher") {
+        if (message.recipientId === "groq_bot_researcher_v2" && researcherBot) {
             selectedBot = researcherBot;
             systemRolePrompt = "You are a factual research assistant. Keep answers under two sentences.";
-        } else if (message.recipientId === "groq_bot_writer") {
+        } else if (message.recipientId === "groq_bot_writer_v2" && writerBot) {
             selectedBot = writerBot;
             systemRolePrompt = "You are an energetic, creative copywriter.";
         }
 
-        // Send data to Groq only if one of our bots was targeted
         if (selectedBot) {
             fetch("https://groq.com", {
                 method: "POST",
@@ -60,21 +72,14 @@ WA.onInit().then(async () => {
                     ]
                 })
             })
-            .then(res => {
-                if (!res.ok) throw new Error(`Groq API Error: ${res.status}`);
-                return res.json();
-            })
+            .then(res => res.json())
             .then(data => {
-                // The correct bot speaks out loud in the room
                 selectedBot.say(data.choices[0].message.content);
             })
-            .catch(err => {
-                selectedBot.say("Groq API connection failed.");
-                console.error("Groq Error:", err);
-            });
+            .catch(err => console.error("Groq Error:", err));
         }
     });
 
 }).catch((err) => {
-    console.error("WorkAdventure couldn't run the script:", err);
+    console.error("❌ [WA Bot] Script failed to launch entirely:", err);
 });
